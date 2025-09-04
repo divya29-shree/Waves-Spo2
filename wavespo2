@@ -70,3 +70,84 @@ ax3.axis("off")
 
 plt.tight_layout()
 plt.show()
+
+
+
+
+
+
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ---------------- RR Wave ----------------
+fs = 500      
+f = 0.40      
+duration = 30  
+t = np.array([i/fs for i in range(int(fs*duration))])
+wave = np.cos(2 * math.pi * f * t + math.pi)
+
+# Adding hump/blip
+blip = np.zeros_like(wave)
+T = 1/f  
+for i in range(int(duration * f) + 1):
+    center = i*T + 0.02*T   
+    blip += 0.1 * np.exp(-((t - center)**2) / (0.06*T)**2)
+
+wave_with_hump = wave + blip
+
+# ---------------- SPO2 Wave ----------------
+x = np.linspace(0, 2 * np.pi, 500) 
+
+def icp_waveform_segment(x_val):
+    p1 = 1.5 * np.sin(x_val)
+    p2_raw = np.sin(x_val - np.pi/4)
+    flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4))) 
+    p2 = 0.0 * (p2_raw**2) * flat_factor 
+    p3 = 0.1 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
+    return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2) 
+
+num_repetitions = 12
+full_x_spo2 = np.linspace(0, num_repetitions * 2 * np.pi, 500 * num_repetitions)
+full_y_spo2 = np.array([icp_waveform_segment(val % (2 * np.pi)) for val in full_x_spo2])
+y_spo2_shifted = full_y_spo2 + 1.5
+
+# ---------------- BP Wave ----------------
+def bp_waveform_segment(x_val):
+    p1 = 1.5 * np.sin(x_val)
+    p2_raw = np.sin(x_val - np.pi/4)
+    flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4))) 
+    p2 = 0.0 * (p2_raw**2) * flat_factor 
+    p3 = 0.1 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
+    return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2) 
+
+base_y_bp = bp_waveform_segment(x)
+num_repetitions_bp = 10
+full_y_bp = np.tile(base_y_bp, num_repetitions_bp)
+full_x_bp = np.linspace(0, 2 * np.pi, len(full_y_bp))
+y_bp_shifted = full_y_bp + 1.5
+
+# ---------------- Plot all three waves ----------------
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(18, 12), facecolor="black")
+
+# RR Plot
+ax1.plot(t, wave_with_hump, color="yellow", linewidth=3.5)
+ax1.set_title("RR", color="white")
+ax1.set_facecolor("black")
+ax1.axis("off")
+
+# SPO2 Plot
+ax2.plot(full_x_spo2, y_spo2_shifted, color="cyan", linewidth=3.5)
+ax2.set_title("SPO2", color="white")
+ax2.set_facecolor("black")
+ax2.axis("off")
+
+# BP Plot
+ax3.plot(full_x_bp, y_bp_shifted, color='lime', linewidth=3.5)
+ax3.set_title("BP", color="white")
+ax3.set_facecolor("black")
+ax3.axis("off")
+
+plt.tight_layout()
+plt.show()
+
