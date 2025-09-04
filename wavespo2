@@ -1,0 +1,63 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Create an array of x values (time)
+x = np.linspace(0, 2 * np.pi, 500) # Use 2*pi for a single cycle
+
+
+def icp_waveform_segment(x_val):
+    # P1 (Percussion Wave) - Sharp rise
+    p1 = 1.5 * np.sin(x_val)
+
+    
+    p2_raw = np.sin(x_val - np.pi/4)
+    flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4)))  # delays rise
+    p2 = 0.0 * (p2_raw**2) * flat_factor 
+
+    
+    p3 = 0.1 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
+
+    
+    return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2) # Additional shaping    make the 2nd peak bottom as flat then curve and continue 
+
+
+# Generate a single cycle of the base waveform
+base_y = icp_waveform_segment(x)
+
+# Repeat the waveform multiple times to match the provided image
+# We'll create 12 repetitions based on your image.
+num_repetitions = 12
+full_x = np.linspace(0, num_repetitions * 2 * np.pi, 500 * num_repetitions)
+full_y = np.array([icp_waveform_segment(val % (2 * np.pi)) for val in full_x])
+
+# Shift the waveform to the positive side to mimic typical ICP readings
+# A suitable offset to ensure it's all above zero and looks realistic for ICP.
+y_shifted = full_y + 1.5
+
+# Normalize the amplitude if necessary to fit a specific range, e.g., 0-10 or 0-20 mmHg
+# For now, we'll let the inherent amplitude be, but you can uncomment and adjust:
+# y_min, y_max = np.min(y_shifted), np.max(y_shifted)
+# y_normalized = (y_shifted - y_min) / (y_max - y_min) * 15 + 5 # Scale to 5-20 mmHg example
+
+# Create the plot
+plt.figure(figsize=(20, 5), facecolor='black') # Increased figure width
+plt.plot(full_x, y_shifted, color='cyan', linewidth=2.5)
+
+
+plt.xticks([]) # Hide x-axis ticks for a continuous look
+plt.yticks(color='white')
+
+
+# Set the plot's background and axis colors to black
+ax = plt.gca()
+ax.set_facecolor('black')
+ax.spines['bottom'].set_color('white')
+ax.spines['top'].set_color('white')
+ax.spines['right'].set_color('white')
+ax.spines['left'].set_color('white')
+
+# Set y-axis limits to represent a typical ICP range
+plt.ylim(0, 5) # Adjust based on the actual amplitude of your generated wave
+
+# Display the plot
+plt.show()
