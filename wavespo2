@@ -1,74 +1,88 @@
+
+import sys
 import math
 import numpy as np
+from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+class WaveformWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("RR, SPO2, BP Waveforms")
+        self.setGeometry(100, 100, 1200, 800)
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout()
+        central_widget.setLayout(layout)
+        self.fig, (self.ax1, self.ax2, self.ax3) = plt.subplots(3, 1, figsize=(18, 12), facecolor="black")
+        self.canvas = FigureCanvas(self.fig)
+        layout.addWidget(self.canvas)
+        self.plot_waveforms()
 
-# ---------------- RR Wave ----------------
-fs = 500      
-f = 0.40      
-duration = 30  
-t = np.array([i/fs for i in range(int(fs*duration))])
-wave = np.cos(2 * math.pi * f * t + math.pi)
+    # ---------------- RR Function ----------------
+    def generate_rr_wave(self, fs=500, f=0.40, duration=30):
+        t = np.array([i/fs for i in range(int(fs*duration))])
+        wave = np.cos(2 * math.pi * f * t + math.pi)
+        blip = np.zeros_like(wave)
+        T = 1/f
+        for i in range(int(duration * f) + 1):
+            center = i*T + 0.02*T
+            blip += 0.1 * np.exp(-((t - center)**2) / (0.06*T)**2)
+        wave_with_hump = wave + blip
+        return t, wave_with_hump
 
-# Adding hump/blip
-blip = np.zeros_like(wave)
-T = 1/f  
-for i in range(int(duration * f) + 1):
-    center = i*T + 0.02*T   
-    blip += 0.1 * np.exp(-((t - center)**2) / (0.06*T)**2)
+    # ---------------- Plotting ----------------
+    def plot_waveforms(self):
+        t, wave_with_hump = self.generate_rr_wave()
+        x = np.linspace(0, 2 * np.pi, 500)
+        def icp_waveform_segment(x_val):
+            p1 = 1.5 * np.sin(x_val)
+            p2_raw = np.sin(x_val - np.pi/4)
+            flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4)))
+            p2 = 0.0 * (p2_raw**2) * flat_factor
+            p3 = 0.1 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
+            return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2)
+        num_repetitions = 12
+        full_x_spo2 = np.linspace(0, num_repetitions * 2 * np.pi, 500 * num_repetitions)
+        full_y_spo2 = np.array([icp_waveform_segment(val % (2 * np.pi)) for val in full_x_spo2])
+        y_spo2_shifted = full_y_spo2 + 1.5
+        def bp_waveform_segment(x_val):
+            p1 = 1.5 * np.sin(x_val)
+            p2_raw = np.sin(x_val - np.pi/2)
+            flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4)))
+            p2 = 0.5 * (p2_raw**2) * flat_factor
+            p3 = 0.7 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
+            return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2)
+        base_y_bp = bp_waveform_segment(x)
+        num_repetitions_bp = 8
+        full_y_bp = np.tile(base_y_bp, num_repetitions_bp)
+        full_x_bp = np.linspace(0, 2 * np.pi, len(full_y_bp))
+        y_bp_shifted = full_y_bp + 1.5
 
-wave_with_hump = wave + blip
+        # ---------------- Plot ----------------
+        # RR Plot
+        self.ax1.plot(t, wave_with_hump, color="yellow", linewidth=3.5)
+        self.ax1.set_title("RR", color="white")
+        self.ax1.set_facecolor("black")
+        self.ax1.axis("off")
 
-# ---------------- SPO2 Wave ----------------
-x = np.linspace(0, 2 * np.pi, 500) 
+        # SPO2 Plot
+        self.ax2.plot(full_x_spo2, y_spo2_shifted, color="cyan", linewidth=3.5)
+        self.ax2.set_title("SPO2", color="white")
+        self.ax2.set_facecolor("black")
+        self.ax2.axis("off")
 
-def icp_waveform_segment(x_val):
-    p1 = 1.5 * np.sin(x_val)
-    p2_raw = np.sin(x_val - np.pi/4)
-    flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4))) 
-    p2 = 0.0 * (p2_raw**2) * flat_factor 
-    p3 = 0.1 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
-    return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2) 
+        # BP Plot
+        self.ax3.plot(full_x_bp, y_bp_shifted, color='red', linewidth=3.5)
+        self.ax3.set_title("BP", color="white")
+        self.ax3.set_facecolor("black")
+        self.ax3.axis("off")
+        self.fig.tight_layout()
+        self.canvas.draw()
+# ---------------- Run PyQt6 Application ----------------
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = WaveformWindow()
+    window.show()
+    sys.exit(app.exec())
 
-num_repetitions = 12
-full_x_spo2 = np.linspace(0, num_repetitions * 2 * np.pi, 500 * num_repetitions)
-full_y_spo2 = np.array([icp_waveform_segment(val % (2 * np.pi)) for val in full_x_spo2])
-y_spo2_shifted = full_y_spo2 + 1.5
-
-# ---------------- BP Wave ----------------
-def bp_waveform_segment(x_val):
-    p1 = 1.5 * np.sin(x_val)
-    p2_raw = np.sin(x_val - np.pi/4)
-    flat_factor = 1 / (1 + np.exp(-5 * (x_val - np.pi/4))) 
-    p2 = 0.0 * (p2_raw**2) * flat_factor 
-    p3 = 0.1 * np.sin(x_val - np.pi/2) * (1 - np.cos(x_val/2))
-    return (p1 + p2 + p3) * np.exp(-x_val/5) + 0.5 * np.sin(x_val*2) 
-
-base_y_bp = bp_waveform_segment(x)
-num_repetitions_bp = 8
-full_y_bp = np.tile(base_y_bp, num_repetitions_bp)
-full_x_bp = np.linspace(0, 2 * np.pi, len(full_y_bp))
-y_bp_shifted = full_y_bp + 1.5
-
-# ---------------- Plot all three waves ----------------
-fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(18, 12), facecolor="black")
-
-# RR Plot
-ax1.plot(t, wave_with_hump, color="yellow", linewidth=3.5)
-ax1.set_title("RR", color="white")
-ax1.set_facecolor("black")
-ax1.axis("off")
-
-# SPO2 Plot
-ax2.plot(full_x_spo2, y_spo2_shifted, color="cyan", linewidth=3.5)
-ax2.set_title("SPO2", color="white")
-ax2.set_facecolor("black")
-ax2.axis("off")
-
-# BP Plot
-ax3.plot(full_x_bp, y_bp_shifted, color='red', linewidth=3.5)
-ax3.set_title("BP", color="white")
-ax3.set_facecolor("black")
-ax3.axis("off")
-
-plt.tight_layout()
-plt.show()
